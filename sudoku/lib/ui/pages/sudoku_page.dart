@@ -57,6 +57,7 @@ class _SudokuPageState extends State<SudokuPage> {
         _hasShownVictoryDialog = false;
         widget.controller.startNewGame(widget.controller.difficulty);
       },
+      onViewStats: _openStats,
     );
   }
 
@@ -77,11 +78,44 @@ class _SudokuPageState extends State<SudokuPage> {
     StatsDialog.show(context, widget.controller.stats);
   }
 
+  void _confirmRestartCurrent() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restart Puzzle?'),
+        content: const Text(
+          'This will clear all entered numbers and restart the timer for this puzzle.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              widget.controller.restartCurrentGame();
+            },
+            child: const Text('Restart'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(int seconds) {
+    final mins = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
+        final isCompleted = widget.controller.status == GameStatus.completed;
+
         return Scaffold(
           appBar: AppBar(
             title: const Text(
@@ -95,9 +129,9 @@ class _SudokuPageState extends State<SudokuPage> {
                 onPressed: _openStats,
               ),
               IconButton(
-                icon: const Icon(Icons.add_rounded),
-                tooltip: 'New Game',
-                onPressed: _openDifficultySelector,
+                icon: const Icon(Icons.restart_alt_rounded),
+                tooltip: 'Restart Puzzle',
+                onPressed: _confirmRestartCurrent,
               ),
             ],
           ),
@@ -129,8 +163,55 @@ class _SudokuPageState extends State<SudokuPage> {
 
                     const SizedBox(height: 4),
 
-                    // Number Pad (1-9 with disappearing completed digits)
-                    NumberPadWidget(controller: widget.controller),
+                    // Number Pad or Solved Summary Card
+                    if (isCompleted)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+                        child: Card(
+                          elevation: 0,
+                          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 30),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        'Puzzle Solved!',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                      ),
+                                      Text(
+                                        'Time: ${_formatTime(widget.controller.elapsedSeconds)}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                OutlinedButton(
+                                  onPressed: _openStats,
+                                  child: const Text('Stats'),
+                                ),
+                                const SizedBox(width: 8),
+                                FilledButton(
+                                  onPressed: _openDifficultySelector,
+                                  child: const Text('New Game'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      NumberPadWidget(controller: widget.controller),
 
                     const SizedBox(height: 12),
                   ],

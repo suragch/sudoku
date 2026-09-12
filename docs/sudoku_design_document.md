@@ -86,6 +86,8 @@ The objective is to create a modern, elegant, and 100% free Sudoku game built wi
 6. **Victory Celebration & Statistics**:
    - Confetti particle explosion upon completing the board.
    - Summary showing completion time, personal best comparison, and total games won / win rate.
+   - Non-blocking options: players can tap **"View Stats"** to inspect their detailed historical stats, **"Close"** to examine their completed board, or **"Play Again"** to start a new game immediately.
+   - When the victory dialog is closed, the bottom bar renders a celebratory summary card with direct access to Stats and New Game.
 7. **Clean Themes**:
    - Minimalist Material 3 light and dark themes, optimized for high contrast and readability.
 

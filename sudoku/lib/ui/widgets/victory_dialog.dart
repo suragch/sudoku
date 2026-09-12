@@ -9,6 +9,7 @@ class VictoryDialog extends StatefulWidget {
   final int hintsUsed;
   final bool isNewBest;
   final VoidCallback onPlayAgain;
+  final VoidCallback? onViewStats;
 
   const VictoryDialog({
     super.key,
@@ -18,6 +19,7 @@ class VictoryDialog extends StatefulWidget {
     required this.hintsUsed,
     required this.isNewBest,
     required this.onPlayAgain,
+    this.onViewStats,
   });
 
   static Future<void> show({
@@ -28,10 +30,11 @@ class VictoryDialog extends StatefulWidget {
     required int hintsUsed,
     required bool isNewBest,
     required VoidCallback onPlayAgain,
+    VoidCallback? onViewStats,
   }) {
     return showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (context) => VictoryDialog(
         difficulty: difficulty,
         elapsedSeconds: elapsedSeconds,
@@ -39,6 +42,7 @@ class VictoryDialog extends StatefulWidget {
         hintsUsed: hintsUsed,
         isNewBest: isNewBest,
         onPlayAgain: onPlayAgain,
+        onViewStats: onViewStats,
       ),
     );
   }
@@ -95,11 +99,23 @@ class _VictoryDialogState extends State<VictoryDialog>
             ),
           ),
 
+          // Close button at top-right
+          Positioned(
+            top: 10,
+            right: 10,
+            child: IconButton(
+              icon: const Icon(Icons.close_rounded),
+              tooltip: 'Close and view board',
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+
           Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -182,8 +198,9 @@ class _VictoryDialogState extends State<VictoryDialog>
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
+                // Primary Play Again Button
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
@@ -200,6 +217,44 @@ class _VictoryDialogState extends State<VictoryDialog>
                       ),
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // Secondary Action Row: View Stats & Close (View Board)
+                Row(
+                  children: [
+                    if (widget.onViewStats != null)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            widget.onViewStats!();
+                          },
+                          icon: const Icon(Icons.leaderboard_outlined, size: 18),
+                          label: const Text('View Stats'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (widget.onViewStats != null) const SizedBox(width: 8),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

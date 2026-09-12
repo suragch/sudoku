@@ -33,13 +33,21 @@ class HeaderBarWidget extends StatelessWidget {
           // Difficulty Selector Button
           ActionChip(
             avatar: const Icon(Icons.tune_rounded, size: 16),
-            label: Text(
-              controller.difficulty.displayName.toUpperCase(),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
+            label: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  controller.difficulty.displayName.toUpperCase(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(Icons.arrow_drop_down_rounded, size: 18),
+              ],
             ),
+            tooltip: 'Change Difficulty / New Game',
             onPressed: onSelectDifficulty,
           ),
 
