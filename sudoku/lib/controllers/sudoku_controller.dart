@@ -41,8 +41,8 @@ class SudokuController extends ChangeNotifier {
 
   SudokuController({StorageService? storageService})
       : _storageService = storageService {
-    if (_storageService != null) {
-      _stats = _storageService!.loadStats();
+    if (storageService != null) {
+      _stats = storageService.loadStats();
     }
     _initGame();
   }

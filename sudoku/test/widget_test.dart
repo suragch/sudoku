@@ -1,30 +1,76 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:sudoku/controllers/sudoku_controller.dart';
 import 'package:sudoku/main.dart';
+import 'package:sudoku/ui/widgets/number_pad_widget.dart';
+import 'package:sudoku/ui/widgets/sudoku_cell_widget.dart';
+import 'package:sudoku/ui/widgets/sudoku_grid_widget.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('SudokuApp smoke test and gameplay interactions', (WidgetTester tester) async {
+    final controller = SudokuController();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(SudokuApp(controller: controller));
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify AppBar
+    expect(find.text('Sudoku'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify 9x9 grid is rendered with 81 cells
+    expect(find.byType(SudokuGridWidget), findsOneWidget);
+    expect(find.byType(SudokuCellWidget), findsNWidgets(81));
+
+    // Verify NumberPadWidget is rendered
+    expect(find.byType(NumberPadWidget), findsOneWidget);
+
+    // Verify action buttons
+    expect(find.text('Undo'), findsOneWidget);
+    expect(find.text('Erase'), findsOneWidget);
+    expect(find.text('Notes'), findsOneWidget);
+    expect(find.text('Hint'), findsOneWidget);
+    expect(find.text('Fast Fill'), findsOneWidget);
+
+    // Verify Timer and Difficulty chip
+    expect(find.text('EASY'), findsOneWidget);
+    expect(find.textContaining('Mistakes:'), findsOneWidget);
+
+    // Find an empty cell widget and tap it
+    final emptyCellFinder = find.byWidgetPredicate(
+      (widget) => widget is SudokuCellWidget && widget.cell.isEmpty,
+    );
+    expect(emptyCellFinder, findsWidgets);
+
+    await tester.tap(emptyCellFinder.first);
+    await tester.pumpAndSettle();
+
+    // Tap number 7 on the number pad using ValueKey
+    final num7Finder = find.byKey(const ValueKey('number_btn_7'));
+    expect(num7Finder, findsOneWidget);
+
+    await tester.tap(num7Finder);
+    await tester.pumpAndSettle();
+
+    // The selected cell should now contain 7
+    expect(controller.selectedCell?.value, equals(7));
+
+    // Tap erase
+    await tester.tap(find.text('Erase'));
+    await tester.pumpAndSettle();
+
+    // The cell value should now be 0 (cleared)
+    expect(controller.selectedCell?.value, equals(0));
+
+    // Tap notes mode
+    await tester.tap(find.text('Notes'));
+    await tester.pumpAndSettle();
+    expect(controller.isNoteMode, isTrue);
+
+    // Add note 3 on the number pad
+    final num3Finder = find.byKey(const ValueKey('number_btn_3'));
+    await tester.tap(num3Finder);
+    await tester.pumpAndSettle();
+    expect(controller.selectedCell?.notes.contains(3), isTrue);
+
+    controller.dispose();
   });
 }
