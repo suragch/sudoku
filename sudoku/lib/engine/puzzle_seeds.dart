@@ -1,0 +1,58 @@
+import '../models/game_enums.dart';
+
+class PuzzleSeed {
+  final Difficulty difficulty;
+  final String puzzle;
+  final String solution;
+
+  const PuzzleSeed({
+    required this.difficulty,
+    required this.puzzle,
+    required this.solution,
+  });
+}
+
+class PuzzleSeeds {
+  static const List<PuzzleSeed> seeds = [
+    // Easy 1
+    PuzzleSeed(
+      difficulty: Difficulty.easy,
+      puzzle:
+          '530070000600195000098000060800060003400803001700020006060000280000419005000080079',
+      solution:
+          '534678912672195348198342567859761423426853791713924856961537284287419635345286179',
+    ),
+    // Easy 2
+    PuzzleSeed(
+      difficulty: Difficulty.easy,
+      puzzle:
+          '000260701680070090190004500820100040004602900050003028009300074040050036703018000',
+      solution:
+          '435269781682571493197834562826195347374682915951743628519326874248957136763418259',
+    ),
+    // Medium 1
+    PuzzleSeed(
+      difficulty: Difficulty.medium,
+      puzzle:
+          '100007090030020008009600500005300900010080002600004000300000010040000007007000300',
+      solution:
+          '162857493534129768789643521475312986913586472628794135356478219841235697297961354',
+    ),
+    // Hard 1
+    PuzzleSeed(
+      difficulty: Difficulty.hard,
+      puzzle:
+          '000000070000000005100070080000002000090000400000700000620000000001900000050000062',
+      solution:
+          '832456971479128365165379284714862539593217486286795143627543819341982756958631724',
+    ),
+    // Expert 1
+    PuzzleSeed(
+      difficulty: Difficulty.expert,
+      puzzle:
+          '000000000000003085001020000000507000004000100090000000500000073002010000000040009',
+      solution:
+          '987654321246173985351928746128537694634892157795461832519286473472319568863745219',
+    ),
+  ];
+}
