@@ -47,7 +47,9 @@ class SudokuCellWidget extends StatelessWidget {
           color: backgroundColor,
           border: isSelected
               ? Border.all(
-                  color: Theme.of(context).colorScheme.primary,
+                  color: cell.isError
+                      ? SudokuTheme.getErrorColor(context)
+                      : Theme.of(context).colorScheme.primary,
                   width: 2.0,
                 )
               : null,

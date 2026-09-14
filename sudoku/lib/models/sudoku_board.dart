@@ -68,50 +68,20 @@ class SudokuBoard {
   /// Returns true if all 9 instances of [digit] are placed correctly.
   bool isDigitComplete(int digit) => getRemainingCount(digit) == 0;
 
-  /// Recalculates error states for all cells based on rule violations (duplicates).
-  void validateDuplicates() {
-    // Reset non-given errors
+  /// Recalculates error states for all cells based on mistakes (non-matching solution value).
+  void validateErrors() {
     for (int r = 0; r < 9; r++) {
       for (int c = 0; c < 9; c++) {
-        if (!cells[r][c].isGiven) {
-          cells[r][c].isError = false;
-        }
-      }
-    }
-
-    // Check rows
-    for (int r = 0; r < 9; r++) {
-      _flagDuplicates(cells[r]);
-    }
-
-    // Check columns
-    for (int c = 0; c < 9; c++) {
-      _flagDuplicates(getCol(c));
-    }
-
-    // Check boxes
-    for (int b = 0; b < 9; b++) {
-      _flagDuplicates(getBox(b));
-    }
-  }
-
-  void _flagDuplicates(List<SudokuCell> group) {
-    final counts = <int, List<SudokuCell>>{};
-    for (final cell in group) {
-      if (cell.value > 0) {
-        counts.putIfAbsent(cell.value, () => []).add(cell);
-      }
-    }
-    for (final entry in counts.entries) {
-      if (entry.value.length > 1) {
-        for (final cell in entry.value) {
-          if (!cell.isGiven) {
-            cell.isError = true;
-          }
+        final cell = cells[r][c];
+        if (!cell.isGiven) {
+          cell.isError = cell.value != 0 && cell.value != cell.solutionValue;
         }
       }
     }
   }
+
+  /// Alias for [validateErrors] to maintain backwards compatibility.
+  void validateDuplicates() => validateErrors();
 
   Map<String, dynamic> toJson() {
     return {

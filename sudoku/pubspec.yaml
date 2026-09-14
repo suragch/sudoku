@@ -1,6 +1,6 @@
 name: sudoku
-description: "A new Flutter project."
-publish_to: 'none' 
+description: "A clean, modern, and ad-free Sudoku game built with Flutter."
+publish_to: 'none'
 version: 1.0.1+2
 
 environment:
@@ -16,6 +16,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
 
 flutter:
   uses-material-design: true

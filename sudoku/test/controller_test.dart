@@ -179,5 +179,52 @@ void main() {
       controller.togglePause();
       expect(controller.status, equals(GameStatus.playing));
     });
+
+    test('entering a mistake marks cell as isError and increments mistakes count', () {
+      // Find an empty cell
+      int emptyR = -1, emptyC = -1;
+      for (int r = 0; r < 9; r++) {
+        for (int c = 0; c < 9; c++) {
+          if (controller.board.cellAt(r, c).isEmpty) {
+            emptyR = r;
+            emptyC = c;
+            break;
+          }
+        }
+        if (emptyR != -1) break;
+      }
+
+      final cell = controller.board.cellAt(emptyR, emptyC);
+      final solution = cell.solutionValue;
+      final wrongDigit = (solution % 9) + 1;
+
+      controller.selectCell(emptyR, emptyC);
+      controller.enterDigit(wrongDigit);
+
+      expect(controller.mistakes, equals(1));
+      expect(cell.value, equals(wrongDigit));
+      expect(cell.isError, isTrue);
+
+      // Undoing the mistake reverts cell to 0 and clears isError
+      controller.undo();
+      expect(cell.value, equals(0));
+      expect(cell.isError, isFalse);
+
+      // Redoing the mistake restores value and isError
+      controller.redo();
+      expect(cell.value, equals(wrongDigit));
+      expect(cell.isError, isTrue);
+
+      // Erasing clears the mistake and clears isError
+      controller.erase();
+      expect(cell.value, equals(0));
+      expect(cell.isError, isFalse);
+
+      // Entering the correct number does not mark isError and does not increment mistakes
+      controller.enterDigit(solution);
+      expect(cell.value, equals(solution));
+      expect(cell.isError, isFalse);
+      expect(controller.mistakes, equals(1)); // Still 1 from earlier mistake
+    });
   });
 }

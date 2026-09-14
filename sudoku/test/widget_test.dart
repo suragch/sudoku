@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sudoku/controllers/sudoku_controller.dart';
 import 'package:sudoku/main.dart';
+import 'package:sudoku/ui/theme/sudoku_theme.dart';
 import 'package:sudoku/ui/widgets/number_pad_widget.dart';
 import 'package:sudoku/ui/widgets/sudoku_cell_widget.dart';
 import 'package:sudoku/ui/widgets/sudoku_grid_widget.dart';
@@ -70,6 +71,58 @@ void main() {
     await tester.tap(num3Finder);
     await tester.pumpAndSettle();
     expect(controller.selectedCell?.notes.contains(3), isTrue);
+
+    controller.dispose();
+  });
+
+  testWidgets('Mistake is marked in red and undo reverts it', (WidgetTester tester) async {
+    final controller = SudokuController();
+
+    await tester.pumpWidget(SudokuApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // Find an empty cell
+    final emptyCellFinder = find.byWidgetPredicate(
+      (widget) => widget is SudokuCellWidget && widget.cell.isEmpty,
+    );
+    expect(emptyCellFinder, findsWidgets);
+
+    // Tap first empty cell
+    await tester.tap(emptyCellFinder.first);
+    await tester.pumpAndSettle();
+
+    final selectedCell = controller.selectedCell!;
+    final solution = selectedCell.solutionValue;
+    final wrongDigit = (solution % 9) + 1;
+
+    // Enter wrong digit
+    final wrongBtnFinder = find.byKey(ValueKey('number_btn_$wrongDigit'));
+    await tester.tap(wrongBtnFinder);
+    await tester.pumpAndSettle();
+
+    // Mistakes label in header bar should reflect 1 mistake
+    expect(find.text('Mistakes: 1'), findsOneWidget);
+
+    // The text on the grid for this wrong digit should have error color (red)
+    final textFinder = find.descendant(
+      of: find.byWidgetPredicate(
+        (widget) => widget is SudokuCellWidget && widget.cell.row == selectedCell.row && widget.cell.col == selectedCell.col,
+      ),
+      matching: find.text('$wrongDigit'),
+    );
+    expect(textFinder, findsOneWidget);
+
+    final textWidget = tester.widget<Text>(textFinder);
+    expect(textWidget.style?.color, equals(SudokuTheme.lightErrorText));
+
+    // Tap Undo
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+
+    // Cell should now be cleared
+    expect(selectedCell.value, equals(0));
+    expect(selectedCell.isError, isFalse);
+    expect(textFinder, findsNothing);
 
     controller.dispose();
   });
