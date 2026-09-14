@@ -84,6 +84,33 @@ class SudokuGenerator {
       }
     }
 
+    // Phase 2: Asymmetric single-cell digging if needed to meet target clues
+    if (currentClues > targetClues) {
+      final singleCells = <Point<int>>[];
+      for (int r = 0; r < 9; r++) {
+        for (int c = 0; c < 9; c++) {
+          if (puzzleGrid[r][c] != 0) {
+            singleCells.add(Point(r, c));
+          }
+        }
+      }
+      singleCells.shuffle(_random);
+
+      for (final pt in singleCells) {
+        if (currentClues <= targetClues) break;
+        final r = pt.x;
+        final c = pt.y;
+        final val = puzzleGrid[r][c];
+
+        puzzleGrid[r][c] = 0;
+        if (SudokuSolver.countSolutions(puzzleGrid, maxCount: 2) == 1) {
+          currentClues -= 1;
+        } else {
+          puzzleGrid[r][c] = val;
+        }
+      }
+    }
+
     // Create SudokuBoard with SudokuCell objects
     final cells = List.generate(9, (r) {
       return List.generate(9, (c) {

@@ -107,7 +107,7 @@ class SudokuController extends ChangeNotifier {
 
   void _startFreshBoard(Difficulty difficulty) {
     _difficulty = difficulty;
-    _board = SudokuGenerator.loadFromSeed(difficulty);
+    _board = SudokuGenerator().generateBoard(difficulty);
     _board.validateDuplicates();
     _elapsedSeconds = 0;
     _mistakes = 0;
