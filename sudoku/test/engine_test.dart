@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sudoku/engine/puzzle_seeds.dart';
 import 'package:sudoku/engine/sudoku_solver.dart';
 import 'package:sudoku/engine/sudoku_generator.dart';
 import 'package:sudoku/models/game_enums.dart';
+import 'package:sudoku/models/sudoku_board.dart';
 
 void main() {
   group('SudokuSolver', () {
@@ -78,53 +78,36 @@ void main() {
     }
   });
 
-  group('PuzzleSeeds validation', () {
-    for (int i = 0; i < PuzzleSeeds.seeds.length; i++) {
-      final seed = PuzzleSeeds.seeds[i];
-      test('seed $i (${seed.difficulty.name}) is valid, matches clues, and has unique solution', () {
-        expect(seed.puzzle.length, equals(81));
-        expect(seed.solution.length, equals(81));
+  group('SudokuBoard fromPuzzleAndSolution', () {
+    test('creates valid board with matching clues and solution', () {
+      const puzzle = '53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79';
+      const solution = '534678912672195348198342567859761423426853791713924856961537284287419635345286179';
+      final board = SudokuBoard.fromPuzzleAndSolution(
+        puzzle: puzzle,
+        solution: solution,
+        puzzleId: 'test_001',
+      );
 
-        final grid = List.generate(9, (r) => List.filled(9, 0));
-        for (int r = 0; r < 9; r++) {
-          for (int c = 0; c < 9; c++) {
-            final pChar = seed.puzzle[r * 9 + c];
-            final sChar = seed.solution[r * 9 + c];
-            if (pChar != '0' && pChar != '.') {
-              expect(pChar, equals(sChar), reason: 'Clue mismatch at ($r, $c)');
-              grid[r][c] = int.parse(pChar);
-            }
-          }
-        }
+      expect(board.cells.length, equals(9));
+      expect(board.puzzleId, equals('test_001'));
+      expect(board.cells[0][0].value, equals(5));
+      expect(board.cells[0][0].isGiven, isTrue);
+      expect(board.cells[0][2].value, equals(0));
+      expect(board.cells[0][2].isGiven, isFalse);
+      expect(board.cells[0][2].solutionValue, equals(4));
 
-        // Validate solution rows, cols, boxes
-        for (int r = 0; r < 9; r++) {
-          final row = [for (int c = 0; c < 9; c++) int.parse(seed.solution[r * 9 + c])];
-          expect(row.toSet(), equals({1, 2, 3, 4, 5, 6, 7, 8, 9}), reason: 'Row $r invalid');
-        }
-        for (int c = 0; c < 9; c++) {
-          final col = [for (int r = 0; r < 9; r++) int.parse(seed.solution[r * 9 + c])];
-          expect(col.toSet(), equals({1, 2, 3, 4, 5, 6, 7, 8, 9}), reason: 'Col $c invalid');
-        }
-        for (int b = 0; b < 9; b++) {
-          final startR = (b ~/ 3) * 3;
-          final startC = (b % 3) * 3;
-          final box = [
-            for (int r = 0; r < 3; r++)
-              for (int c = 0; c < 3; c++)
-                int.parse(seed.solution[(startR + r) * 9 + (startC + c)])
-          ];
-          expect(box.toSet(), equals({1, 2, 3, 4, 5, 6, 7, 8, 9}), reason: 'Box $b invalid');
-        }
+      // Test copy
+      final copied = board.copy();
+      expect(copied.puzzleId, equals('test_001'));
+      expect(identical(copied, board), isFalse);
+      expect(copied.cells[0][0].value, equals(5));
 
-        // Validate uniqueness
-        expect(SudokuSolver.countSolutions(grid, maxCount: 2), equals(1));
-        final solved = SudokuSolver.solve(grid);
-        expect(solved, isNotNull);
-        final solvedStr = solved!.map((r) => r.join()).join();
-        expect(solvedStr, equals(seed.solution));
-      });
-    }
+      // Test toJson and fromJson
+      final json = board.toJson();
+      final restored = SudokuBoard.fromJson(json);
+      expect(restored.puzzleId, equals('test_001'));
+      expect(restored.cells[0][0].value, equals(5));
+    });
   });
 }
 

@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sudoku/controllers/sudoku_controller.dart';
 import 'package:sudoku/main.dart';
+import 'package:sudoku/services/puzzle_database_service.dart';
 import 'package:sudoku/ui/theme/sudoku_theme.dart';
 import 'package:sudoku/ui/widgets/number_pad_widget.dart';
 import 'package:sudoku/ui/widgets/sudoku_cell_widget.dart';
 import 'package:sudoku/ui/widgets/sudoku_grid_widget.dart';
 
 void main() {
+  setUpAll(() async {
+    await PuzzleDatabaseService.init();
+  });
+
   testWidgets('SudokuApp smoke test and gameplay interactions', (WidgetTester tester) async {
     final controller = SudokuController();
 

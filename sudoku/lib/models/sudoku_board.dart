@@ -1,9 +1,11 @@
+import '../engine/puzzle_record.dart';
 import 'sudoku_cell.dart';
 
 class SudokuBoard {
   final List<List<SudokuCell>> cells;
+  final String? puzzleId;
 
-  SudokuBoard(this.cells);
+  SudokuBoard(this.cells, {this.puzzleId});
 
   SudokuCell cellAt(int row, int col) => cells[row][col];
 
@@ -83,8 +85,55 @@ class SudokuBoard {
   /// Alias for [validateErrors] to maintain backwards compatibility.
   void validateDuplicates() => validateErrors();
 
+  /// Creates a deep copy of this board.
+  SudokuBoard copy() {
+    return SudokuBoard(
+      cells.map((row) => row.map((cell) => cell.copyWith()).toList()).toList(),
+      puzzleId: puzzleId,
+    );
+  }
+
+  /// Constructs a [SudokuBoard] from 81-character puzzle and solution strings.
+  factory SudokuBoard.fromPuzzleAndSolution({
+    required String puzzle,
+    required String solution,
+    String? puzzleId,
+  }) {
+    assert(puzzle.length == 81, 'Puzzle string must be exactly 81 characters');
+    assert(solution.length == 81, 'Solution string must be exactly 81 characters');
+
+    final cells = List.generate(9, (r) {
+      return List.generate(9, (c) {
+        final idx = r * 9 + c;
+        final pChar = puzzle[idx];
+        final sChar = solution[idx];
+        final isGiven = pChar != '.' && pChar != '0';
+        final val = isGiven ? int.parse(pChar) : 0;
+        final sol = int.parse(sChar);
+        return SudokuCell(
+          row: r,
+          col: c,
+          solutionValue: sol,
+          isGiven: isGiven,
+          value: val,
+        );
+      });
+    });
+    return SudokuBoard(cells, puzzleId: puzzleId);
+  }
+
+  /// Constructs a [SudokuBoard] from a [SudokuPuzzleRecord].
+  factory SudokuBoard.fromRecord(SudokuPuzzleRecord record) {
+    return SudokuBoard.fromPuzzleAndSolution(
+      puzzle: record.puzzle,
+      solution: record.solution,
+      puzzleId: record.id,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
+      if (puzzleId != null) 'puzzleId': puzzleId,
       'cells': cells.map((row) => row.map((cell) => cell.toJson()).toList()).toList(),
     };
   }
@@ -96,6 +145,9 @@ class SudokuBoard {
         return SudokuCell.fromJson(cellJson as Map<String, dynamic>);
       }).toList();
     }).toList();
-    return SudokuBoard(boardCells);
+    return SudokuBoard(
+      boardCells,
+      puzzleId: json['puzzleId'] as String?,
+    );
   }
 }

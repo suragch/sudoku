@@ -2,20 +2,44 @@ import 'dart:math';
 
 import '../models/game_enums.dart';
 import '../models/sudoku_board.dart';
-import '../models/sudoku_cell.dart';
-import 'puzzle_seeds.dart';
+import 'deductive_grader.dart';
+import 'puzzle_record.dart';
 import 'sudoku_solver.dart';
+
+class SymmetricItem {
+  final int r1, c1, r2, c2;
+  final bool isCenter;
+  const SymmetricItem(this.r1, this.c1, this.r2, this.c2, this.isCenter);
+}
 
 class SudokuGenerator {
   final Random _random;
 
   SudokuGenerator([Random? random]) : _random = random ?? Random();
 
-  /// Generates a fully solved 9x9 board.
+  static final List<SymmetricItem> symmetricItems = () {
+    final items = <SymmetricItem>[];
+    for (int r = 0; r < 9; r++) {
+      for (int c = 0; c < 9; c++) {
+        final r2 = 8 - r;
+        final c2 = 8 - c;
+        final idx1 = r * 9 + c;
+        final idx2 = r2 * 9 + c2;
+        if (idx1 < idx2) {
+          items.add(SymmetricItem(r, c, r2, c2, false));
+        } else if (idx1 == idx2) {
+          items.add(SymmetricItem(r, c, r2, c2, true));
+        }
+      }
+    }
+    return items;
+  }();
+
+  /// Generates a fully solved 9x9 board with standard Sudoku rules.
   List<List<int>> generateSolvedBoard() {
     final board = List.generate(9, (_) => List<int>.filled(9, 0));
 
-    // Fill the 3 independent diagonal boxes with random permutations
+    // Fill the 3 independent diagonal 3x3 boxes with random permutations
     for (int box = 0; box < 9; box += 4) {
       final nums = List.generate(9, (i) => i + 1)..shuffle(_random);
       int idx = 0;
@@ -34,124 +58,87 @@ class SudokuGenerator {
       return solved;
     }
 
-    // Fallback if random box placement was rare dead-end (very rare, retry)
+    // Fallback if random box placement was dead-end
     return generateSolvedBoard();
   }
 
-  /// Generates a playable [SudokuBoard] for the given [difficulty].
-  SudokuBoard generateBoard(Difficulty difficulty) {
-    // Generate fresh solved board
-    final solvedGrid = generateSolvedBoard();
-    final puzzleGrid = List.generate(9, (r) => List<int>.from(solvedGrid[r]));
+  /// Generates a validated [SudokuPuzzleRecord] conforming to difficulty and symmetry invariants.
+  SudokuPuzzleRecord? generatePuzzleRecord({
+    required Difficulty targetDifficulty,
+    String? id,
+    int maxAttempts = 100,
+  }) {
+    final (minClues, maxClues) = switch (targetDifficulty) {
+      Difficulty.easy => (32, 38),
+      Difficulty.medium => (28, 32),
+      Difficulty.hard => (24, 28),
+      Difficulty.expert => (22, 26),
+    };
 
-    // Generate list of symmetrical cell pairs
-    final pairs = <Point<int>>[];
-    for (int r = 0; r < 9; r++) {
-      for (int c = 0; c <= 4; c++) {
-        pairs.add(Point(r, c));
-      }
-    }
-    pairs.shuffle(_random);
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      final solvedGrid = generateSolvedBoard();
+      final puzzleGrid = List.generate(9, (r) => List<int>.from(solvedGrid[r]));
+      final items = List<SymmetricItem>.from(symmetricItems)..shuffle(_random);
 
-    int currentClues = 81;
-    final targetClues = difficulty.clueTarget;
+      int currentClues = 81;
 
-    for (final pt in pairs) {
-      if (currentClues <= targetClues) break;
+      for (final item in items) {
+        if (currentClues <= minClues) break;
 
-      final r1 = pt.x;
-      final c1 = pt.y;
-      final r2 = 8 - r1;
-      final c2 = 8 - c1;
+        final val1 = puzzleGrid[item.r1][item.c1];
+        final val2 = puzzleGrid[item.r2][item.c2];
+        if (val1 == 0) continue;
 
-      final val1 = puzzleGrid[r1][c1];
-      final val2 = puzzleGrid[r2][c2];
+        puzzleGrid[item.r1][item.c1] = 0;
+        puzzleGrid[item.r2][item.c2] = 0;
+        final removedCount = item.isCenter ? 1 : 2;
 
-      if (val1 == 0) continue;
-
-      // Temporarily remove
-      puzzleGrid[r1][c1] = 0;
-      puzzleGrid[r2][c2] = 0;
-      final removedCount = (r1 == r2 && c1 == c2) ? 1 : 2;
-
-      // Verify unique solution
-      if (SudokuSolver.countSolutions(puzzleGrid, maxCount: 2) == 1) {
-        currentClues -= removedCount;
-      } else {
-        // Restore
-        puzzleGrid[r1][c1] = val1;
-        puzzleGrid[r2][c2] = val2;
-      }
-    }
-
-    // Phase 2: Asymmetric single-cell digging if needed to meet target clues
-    if (currentClues > targetClues) {
-      final singleCells = <Point<int>>[];
-      for (int r = 0; r < 9; r++) {
-        for (int c = 0; c < 9; c++) {
-          if (puzzleGrid[r][c] != 0) {
-            singleCells.add(Point(r, c));
-          }
-        }
-      }
-      singleCells.shuffle(_random);
-
-      for (final pt in singleCells) {
-        if (currentClues <= targetClues) break;
-        final r = pt.x;
-        final c = pt.y;
-        final val = puzzleGrid[r][c];
-
-        puzzleGrid[r][c] = 0;
         if (SudokuSolver.countSolutions(puzzleGrid, maxCount: 2) == 1) {
-          currentClues -= 1;
+          currentClues -= removedCount;
+
+          // If targeting Easy, guard ceiling early
+          if (targetDifficulty == Difficulty.easy && currentClues <= maxClues) {
+            final pStr = SudokuSolver.formatGridToString(puzzleGrid);
+            final grade = DeductiveGrader.gradePuzzle(pStr, maxAllowedDifficulty: Difficulty.easy);
+            if (grade.difficulty != Difficulty.easy) {
+              puzzleGrid[item.r1][item.c1] = val1;
+              puzzleGrid[item.r2][item.c2] = val2;
+              currentClues += removedCount;
+            }
+          }
         } else {
-          puzzleGrid[r][c] = val;
+          puzzleGrid[item.r1][item.c1] = val1;
+          puzzleGrid[item.r2][item.c2] = val2;
+        }
+      }
+
+      if (currentClues >= minClues && currentClues <= maxClues) {
+        final pStr = SudokuSolver.formatGridToString(puzzleGrid);
+        final grade = DeductiveGrader.gradePuzzle(pStr);
+        if (grade.isSolved && grade.difficulty == targetDifficulty) {
+          final sStr = SudokuSolver.formatGridToString(solvedGrid);
+          return SudokuPuzzleRecord(
+            id: id ?? '${targetDifficulty.name}_0001',
+            difficulty: targetDifficulty.name,
+            clueCount: currentClues,
+            puzzle: pStr,
+            solution: sStr,
+            hardestTechnique: grade.hardestTechnique ?? 'naked_single',
+            techniquesUsed: grade.techniquesUsed,
+          );
         }
       }
     }
-
-    // Create SudokuBoard with SudokuCell objects
-    final cells = List.generate(9, (r) {
-      return List.generate(9, (c) {
-        final val = puzzleGrid[r][c];
-        final isGiven = val != 0;
-        return SudokuCell(
-          row: r,
-          col: c,
-          solutionValue: solvedGrid[r][c],
-          isGiven: isGiven,
-          value: val,
-        );
-      });
-    });
-
-    return SudokuBoard(cells);
+    return null;
   }
 
-  /// Creates a board from curated seeds (instantaneous load).
-  static SudokuBoard loadFromSeed(Difficulty difficulty, [int seedIndex = 0]) {
-    final matching = PuzzleSeeds.seeds.where((s) => s.difficulty == difficulty).toList();
-    if (matching.isEmpty) {
-      return SudokuGenerator().generateBoard(difficulty);
+  /// Generates a playable [SudokuBoard] for the given [difficulty] with 180° rotational symmetry.
+  SudokuBoard generateBoard(Difficulty difficulty) {
+    while (true) {
+      final rec = generatePuzzleRecord(targetDifficulty: difficulty, maxAttempts: 150);
+      if (rec != null) {
+        return SudokuBoard.fromRecord(rec);
+      }
     }
-    final seed = matching[seedIndex % matching.length];
-    final cells = List.generate(9, (r) {
-      return List.generate(9, (c) {
-        final index = r * 9 + c;
-        final pChar = seed.puzzle[index];
-        final sChar = seed.solution[index];
-        final val = (pChar != '.' && pChar != '0') ? int.parse(pChar) : 0;
-        final sol = int.parse(sChar);
-        return SudokuCell(
-          row: r,
-          col: c,
-          solutionValue: sol,
-          isGiven: val != 0,
-          value: val,
-        );
-      });
-    });
-    return SudokuBoard(cells);
   }
 }

@@ -185,6 +185,41 @@ class SudokuSolver {
     return countSolutions(grid, maxCount: 2) == 1;
   }
 
+  static List<List<int>> parseStringToGrid(String str) {
+    final grid = List.generate(9, (_) => List<int>.filled(9, 0));
+    for (int i = 0; i < 81 && i < str.length; i++) {
+      final ch = str[i];
+      if (ch != '.' && ch != '0') {
+        final val = int.tryParse(ch);
+        if (val != null && val >= 1 && val <= 9) {
+          grid[i ~/ 9][i % 9] = val;
+        }
+      }
+    }
+    return grid;
+  }
+
+  static String formatGridToString(List<List<int>> grid, {String emptyChar = '.'}) {
+    final sb = StringBuffer();
+    for (int r = 0; r < 9; r++) {
+      for (int c = 0; c < 9; c++) {
+        final v = grid[r][c];
+        sb.write(v == 0 ? emptyChar : v.toString());
+      }
+    }
+    return sb.toString();
+  }
+
+  static int countSolutionsString(String puzzle, {int maxCount = 2}) {
+    return countSolutions(parseStringToGrid(puzzle), maxCount: maxCount);
+  }
+
+  static String? solveString(String puzzle) {
+    final solved = solve(parseStringToGrid(puzzle));
+    if (solved == null) return null;
+    return formatGridToString(solved);
+  }
+
   static int _popCount(int mask) {
     int count = 0;
     while (mask > 0) {

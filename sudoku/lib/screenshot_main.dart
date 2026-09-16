@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 
 import 'controllers/sudoku_controller.dart';
 import 'models/game_enums.dart';
+import 'services/puzzle_database_service.dart';
 import 'ui/pages/sudoku_page.dart';
 import 'ui/widgets/victory_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await PuzzleDatabaseService.init();
   runApp(const ScreenshotApp());
 }
 

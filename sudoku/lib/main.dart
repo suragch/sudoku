@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'controllers/sudoku_controller.dart';
+import 'services/puzzle_database_service.dart';
 import 'services/storage_service.dart';
 import 'ui/pages/sudoku_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final storageService = await StorageService.init();
-  final controller = SudokuController(storageService: storageService);
+  final databaseService = await PuzzleDatabaseService.init();
+  final controller = SudokuController(
+    storageService: storageService,
+    databaseService: databaseService,
+  );
 
   runApp(SudokuApp(controller: controller));
 }

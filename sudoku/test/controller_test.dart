@@ -1,9 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sudoku/controllers/sudoku_controller.dart';
 import 'package:sudoku/models/game_enums.dart';
+import 'package:sudoku/services/puzzle_database_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    await PuzzleDatabaseService.init();
+  });
 
   group('SudokuController', () {
     late SudokuController controller;
@@ -225,6 +230,17 @@ void main() {
       expect(cell.value, equals(solution));
       expect(cell.isError, isFalse);
       expect(controller.mistakes, equals(1)); // Still 1 from earlier mistake
+    });
+
+    test('startNewGame loads fresh puzzle from database', () async {
+      final initialBoard = controller.board;
+      expect(controller.difficulty, equals(Difficulty.easy));
+
+      await controller.startNewGame(Difficulty.medium);
+      expect(controller.difficulty, equals(Difficulty.medium));
+      expect(controller.board, isNot(same(initialBoard)));
+      expect(controller.status, equals(GameStatus.playing));
+      expect(controller.elapsedSeconds, equals(0));
     });
   });
 }

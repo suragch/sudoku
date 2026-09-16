@@ -2,16 +2,17 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../engine/sudoku_generator.dart';
 import '../models/game_action.dart';
 import '../models/game_enums.dart';
 import '../models/game_stats.dart';
 import '../models/sudoku_board.dart';
 import '../models/sudoku_cell.dart';
+import '../services/puzzle_database_service.dart';
 import '../services/storage_service.dart';
 
 class SudokuController extends ChangeNotifier {
   final StorageService? _storageService;
+  final PuzzleDatabaseService? _databaseService;
 
   late SudokuBoard _board;
   Difficulty _difficulty = Difficulty.easy;
@@ -39,12 +40,16 @@ class SudokuController extends ChangeNotifier {
   GameStats _stats = GameStats();
   bool _isNewBestTime = false;
 
-  SudokuController({StorageService? storageService})
-      : _storageService = storageService {
+  SudokuController({
+    StorageService? storageService,
+    PuzzleDatabaseService? databaseService,
+    SudokuBoard? initialBoard,
+  })  : _storageService = storageService,
+        _databaseService = databaseService ?? PuzzleDatabaseService.instanceOrNull {
     if (storageService != null) {
       _stats = storageService.loadStats();
     }
-    _initGame();
+    _initGame(initialBoard: initialBoard);
   }
 
   // Getters
@@ -89,7 +94,7 @@ class SudokuController extends ChangeNotifier {
   bool isDigitComplete(int digit) => _board.isDigitComplete(digit);
   int getRemainingCount(int digit) => _board.getRemainingCount(digit);
 
-  void _initGame() {
+  void _initGame({SudokuBoard? initialBoard}) {
     final saved = _storageService?.loadActiveGame();
     if (saved != null && saved.status != GameStatus.completed) {
       _board = saved.board;
@@ -99,15 +104,25 @@ class SudokuController extends ChangeNotifier {
       _hintsUsed = saved.hintsUsed;
       _status = saved.status;
       _board.validateDuplicates();
+    } else if (initialBoard != null) {
+      _startFreshBoardWithBoard(_difficulty, initialBoard);
     } else {
-      _startFreshBoard(_difficulty);
+      final db = _databaseService ?? PuzzleDatabaseService.instanceOrNull;
+      if (db != null) {
+        final preloaded = db.getPreloadedBoard(_difficulty);
+        _startFreshBoardWithBoard(_difficulty, preloaded);
+      } else {
+        throw StateError(
+          'SudokuController requires an initialBoard or an initialized PuzzleDatabaseService.',
+        );
+      }
     }
     _startTimer();
   }
 
-  void _startFreshBoard(Difficulty difficulty) {
+  void _startFreshBoardWithBoard(Difficulty difficulty, SudokuBoard board) {
     _difficulty = difficulty;
-    _board = SudokuGenerator().generateBoard(difficulty);
+    _board = board;
     _board.validateDuplicates();
     _elapsedSeconds = 0;
     _mistakes = 0;
@@ -128,9 +143,21 @@ class SudokuController extends ChangeNotifier {
     _saveState();
   }
 
-  void startNewGame(Difficulty difficulty) {
+  Future<void> startNewGame(Difficulty difficulty, [SudokuBoard? board]) async {
     _timer?.cancel();
-    _startFreshBoard(difficulty);
+    final SudokuBoard newBoard;
+    if (board != null) {
+      newBoard = board;
+    } else {
+      final db = _databaseService ?? PuzzleDatabaseService.instanceOrNull;
+      if (db == null) {
+        throw StateError(
+          'Cannot start new game: PuzzleDatabaseService is not initialized.',
+        );
+      }
+      newBoard = await db.getRandomPuzzle(difficulty);
+    }
+    _startFreshBoardWithBoard(difficulty, newBoard);
     _startTimer();
     notifyListeners();
   }
