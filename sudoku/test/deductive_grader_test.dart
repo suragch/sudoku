@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sudoku/engine/deductive_grader.dart';
 import 'package:sudoku/engine/sudoku_solver.dart';
 import 'package:sudoku/models/game_enums.dart';
+import 'package:sudoku/models/sudoku_board.dart';
 import 'package:sudoku/services/puzzle_database_service.dart';
 
 void main() {
@@ -147,5 +148,75 @@ void main() {
       final multiSolution = '.' * 81;
       expect(SudokuSolver.countSolutionsString(multiSolution, maxCount: 2), equals(2));
     });
+
+    group('DeductiveGrader.findNextHint Tests', () {
+      test('finds error_conflict hint when an invalid digit is placed', () async {
+        final record = await dbService.getRandomPuzzleRecord(Difficulty.easy);
+        final board = SudokuBoard.fromRecord(record);
+
+        // Find an empty cell and enter a wrong digit
+        int emptyR = -1, emptyC = -1;
+        for (int r = 0; r < 9; r++) {
+          for (int c = 0; c < 9; c++) {
+            if (board.cellAt(r, c).isEmpty) {
+              emptyR = r;
+              emptyC = c;
+              break;
+            }
+          }
+          if (emptyR != -1) break;
+        }
+
+        final wrongValue = (board.cellAt(emptyR, emptyC).solutionValue % 9) + 1;
+        board.cellAt(emptyR, emptyC).value = wrongValue;
+        board.cellAt(emptyR, emptyC).isError = true;
+
+        final hint = DeductiveGrader.findNextHint(board);
+        expect(hint, isNotNull);
+        expect(hint!.techniqueId, equals('error_conflict'));
+        expect(hint.targetRow, equals(emptyR));
+        expect(hint.targetCol, equals(emptyC));
+        expect(hint.clueMessage, contains('incorrect digit'));
+      });
+
+      test('finds deductive hint for naked or hidden single on easy board', () async {
+        final record = await dbService.getRandomPuzzleRecord(Difficulty.easy);
+        final board = SudokuBoard.fromRecord(record);
+
+        final hint = DeductiveGrader.findNextHint(board);
+        expect(hint, isNotNull);
+        expect(hint!.targetRow, inInclusiveRange(0, 8));
+        expect(hint.targetCol, inInclusiveRange(0, 8));
+        expect(hint.targetValue, inInclusiveRange(1, 9));
+        expect(hint.causeCellIndices, isNotEmpty);
+        expect(hint.clueMessage, isNotEmpty);
+        expect(hint.explanationMessage, isNotEmpty);
+        expect(['naked_single', 'hidden_single'].contains(hint.techniqueId), isTrue);
+
+        // Verify the hinted value matches the known solution value
+        final sol = board.cellAt(hint.targetRow, hint.targetCol).solutionValue;
+        expect(hint.targetValue, equals(sol));
+      });
+
+      test('prioritizes preferred cell when a deduction is available for it', () async {
+        final record = await dbService.getRandomPuzzleRecord(Difficulty.easy);
+        final board = SudokuBoard.fromRecord(record);
+
+        // Find a cell that has a naked or hidden single
+        final firstHint = DeductiveGrader.findNextHint(board);
+        expect(firstHint, isNotNull);
+
+        // When we pass the firstHint target cell as preferredRow/preferredCol, it should return that cell
+        final preferredHint = DeductiveGrader.findNextHint(
+          board,
+          preferredRow: firstHint!.targetRow,
+          preferredCol: firstHint.targetCol,
+        );
+        expect(preferredHint, isNotNull);
+        expect(preferredHint!.targetRow, equals(firstHint.targetRow));
+        expect(preferredHint.targetCol, equals(firstHint.targetCol));
+      });
+    });
   });
 }
+

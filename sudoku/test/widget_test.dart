@@ -131,4 +131,105 @@ void main() {
 
     controller.dispose();
   });
+
+  testWidgets('Two-stage hint banner flow: clue -> reveal answer -> dismiss', (WidgetTester tester) async {
+    final controller = SudokuController();
+
+    await tester.pumpWidget(SudokuApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // Tap Hint button in toolbar
+    await tester.tap(find.text('Hint'));
+    await tester.pumpAndSettle();
+
+    // Verify Hint Banner appears in Stage 1
+    expect(controller.isHintActive, isTrue);
+    expect(controller.hintStage, equals(1));
+    expect(find.text('Where to Look'), findsOneWidget);
+    expect(find.text('Reveal Answer'), findsOneWidget);
+    expect(find.text("I'll solve it"), findsOneWidget);
+
+    // Tap Reveal Answer
+    await tester.tap(find.text('Reveal Answer'));
+    await tester.pumpAndSettle();
+
+    // Verify Hint Banner transitions to Stage 2
+    expect(controller.hintStage, equals(2));
+    expect(find.text('Explanation'), findsOneWidget);
+    expect(find.text('Got it'), findsOneWidget);
+    expect(controller.hintsUsed, equals(1));
+
+    // Tap Got it to dismiss
+    await tester.tap(find.text('Got it'));
+    await tester.pumpAndSettle();
+
+    // Verify Hint Banner is dismissed
+    expect(controller.isHintActive, isFalse);
+    expect(find.text('Explanation'), findsNothing);
+
+    controller.dispose();
+  });
+
+  testWidgets('Grid numbers shrink proportionally when the grid shrinks in size', (WidgetTester tester) async {
+    final controller = SudokuController();
+
+    // 1. Render in a large 450x450 box (typical cell size ~50px)
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 450,
+              height: 450,
+              child: SudokuGridWidget(controller: controller),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Find a given clue number Text widget
+    final clueCellFinder = find.byWidgetPredicate(
+      (w) => w is SudokuCellWidget && w.cell.isGiven && w.cell.value > 0,
+    );
+    expect(clueCellFinder, findsWidgets);
+
+    final firstClueTextFinder = find.descendant(
+      of: clueCellFinder.first,
+      matching: find.byType(Text),
+    );
+    final textWidgetLarge = tester.widget<Text>(firstClueTextFinder);
+    final largeFontSize = textWidgetLarge.style?.fontSize;
+    expect(largeFontSize, isNotNull);
+
+    // 2. Render in a small 270x270 box (typical shrunk cell size ~30px, e.g. during hint banner)
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 270,
+              height: 270,
+              child: SudokuGridWidget(controller: controller),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final textWidgetSmall = tester.widget<Text>(firstClueTextFinder);
+    final smallFontSize = textWidgetSmall.style?.fontSize;
+    expect(smallFontSize, isNotNull);
+
+    // Verify the numbers shrunk
+    expect(smallFontSize!, lessThan(largeFontSize!));
+    expect(smallFontSize, closeTo(270 / 9 * 0.58, 0.5));
+    expect(largeFontSize, closeTo(450 / 9 * 0.58, 0.5));
+
+    controller.dispose();
+  });
 }
+
+

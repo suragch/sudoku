@@ -13,6 +13,10 @@ class SudokuTheme {
   static const Color lightErrorBg = Color(0xFFFEE2E2); // Red 100
   static const Color lightErrorText = Color(0xFFDC2626); // Red 600
   static const Color lightCompletionGlow = Color(0xFFFEF08A); // Yellow 200
+  static const Color lightHintTargetBg = Color(0xFFFEF3C7); // Amber 100
+  static const Color lightHintTargetBorder = Color(0xFFF59E0B); // Amber 500
+  static const Color lightHintCauseBg = Color(0xFFEDE9FE); // Violet 100
+  static const Color lightHintCauseBorder = Color(0xFF8B5CF6); // Violet 500
 
   // Dark Mode Colors
   static const Color darkGridBorderThick = Color(0xFF94A3B8); // Slate 400
@@ -26,6 +30,10 @@ class SudokuTheme {
   static const Color darkErrorBg = Color(0xFF7F1D1D); // Red 900
   static const Color darkErrorText = Color(0xFFF87171); // Red 400
   static const Color darkCompletionGlow = Color(0xFF854D0E); // Amber 800
+  static const Color darkHintTargetBg = Color(0xFF451A03); // Amber 950
+  static const Color darkHintTargetBorder = Color(0xFFFBBF24); // Amber 400
+  static const Color darkHintCauseBg = Color(0xFF2E1065); // Violet 950
+  static const Color darkHintCauseBorder = Color(0xFFA78BFA); // Violet 400
 
   static Color getThickBorder(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
@@ -81,4 +89,24 @@ class SudokuTheme {
       Theme.of(context).brightness == Brightness.dark
           ? darkCompletionGlow
           : lightCompletionGlow;
+
+  static Color getHintTargetBg(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+          ? darkHintTargetBg
+          : lightHintTargetBg;
+
+  static Color getHintTargetBorder(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+          ? darkHintTargetBorder
+          : lightHintTargetBorder;
+
+  static Color getHintCauseBg(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+          ? darkHintCauseBg
+          : lightHintCauseBg;
+
+  static Color getHintCauseBorder(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+          ? darkHintCauseBorder
+          : lightHintCauseBorder;
 }

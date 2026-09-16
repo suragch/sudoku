@@ -4,6 +4,7 @@ import '../../models/game_enums.dart';
 import '../widgets/action_toolbar_widget.dart';
 import '../widgets/difficulty_dialog.dart';
 import '../widgets/header_bar_widget.dart';
+import '../widgets/hint_banner_widget.dart';
 import '../widgets/number_pad_widget.dart';
 import '../widgets/stats_dialog.dart';
 import '../widgets/sudoku_grid_widget.dart';
@@ -157,6 +158,9 @@ class _SudokuPageState extends State<SudokuPage> {
                         ),
                       ),
                     ),
+
+                    // Progressive Deductive Hint Banner (Stages 1 and 2)
+                    HintBannerWidget(controller: widget.controller),
 
                     // Action Toolbar (Undo, Erase, Notes, Hint, Fast Fill)
                     ActionToolbarWidget(controller: widget.controller),

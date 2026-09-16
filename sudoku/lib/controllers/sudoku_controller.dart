@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../engine/deductive_grader.dart';
+import '../models/deductive_hint.dart';
 import '../models/game_action.dart';
 import '../models/game_enums.dart';
 import '../models/game_stats.dart';
@@ -29,6 +31,10 @@ class SudokuController extends ChangeNotifier {
   int _hintsUsed = 0;
   Timer? _timer;
 
+  // Two-stage deductive hint tracking
+  DeductiveHint? _activeHint;
+  int _hintStage = 0; // 0 = none, 1 = Stage 1 (Clue/Highlight), 2 = Stage 2 (Revealed)
+
   final List<GameAction> _undoStack = [];
   final List<GameAction> _redoStack = [];
 
@@ -36,6 +42,7 @@ class SudokuController extends ChangeNotifier {
   final Set<int> _animatingRows = {};
   final Set<int> _animatingCols = {};
   final Set<int> _animatingBoxes = {};
+  final List<Timer> _animationTimers = [];
 
   GameStats _stats = GameStats();
   bool _isNewBestTime = false;
@@ -64,6 +71,9 @@ class SudokuController extends ChangeNotifier {
   int get elapsedSeconds => _elapsedSeconds;
   int get mistakes => _mistakes;
   int get hintsUsed => _hintsUsed;
+  DeductiveHint? get activeHint => _activeHint;
+  int get hintStage => _hintStage;
+  bool get isHintActive => _activeHint != null && _hintStage > 0;
   bool get canUndo => _undoStack.isNotEmpty;
   bool get canRedo => _redoStack.isNotEmpty;
   GameStats get stats => _stats;
@@ -137,6 +147,8 @@ class SudokuController extends ChangeNotifier {
     _animatingCols.clear();
     _animatingBoxes.clear();
     _isNewBestTime = false;
+    _activeHint = null;
+    _hintStage = 0;
 
     _stats = _stats.recordGameStarted(difficulty);
     _storageService?.saveStats(_stats);
@@ -227,6 +239,11 @@ class SudokuController extends ChangeNotifier {
   void selectCell(int r, int c) {
     if (_status == GameStatus.paused) return;
 
+    if (_activeHint != null && (_activeHint!.targetRow != r || _activeHint!.targetCol != c)) {
+      _activeHint = null;
+      _hintStage = 0;
+    }
+
     if (_inputMode == InputMode.digitFirst && _selectedDigit != null) {
       // In digit-first mode, tapping a cell applies the selected digit
       _selectedRow = r;
@@ -253,6 +270,10 @@ class SudokuController extends ChangeNotifier {
   // Digit Entry
   void enterDigit(int digit) {
     if (_status != GameStatus.playing) return;
+
+    _activeHint = null;
+    _hintStage = 0;
+
     if (_selectedRow == null || _selectedCol == null) {
       // If no cell selected, select the digit for highlighting
       _selectedDigit = digit;
@@ -381,6 +402,10 @@ class SudokuController extends ChangeNotifier {
 
   void erase() {
     if (_status != GameStatus.playing) return;
+
+    _activeHint = null;
+    _hintStage = 0;
+
     if (_selectedRow == null || _selectedCol == null) return;
 
     final r = _selectedRow!;
@@ -458,63 +483,87 @@ class SudokuController extends ChangeNotifier {
   void giveHint() {
     if (_status != GameStatus.playing) return;
 
-    SudokuCell? target;
-    // Prefer current selected cell if empty
-    if (_selectedRow != null && _selectedCol != null) {
-      final cell = _board.cellAt(_selectedRow!, _selectedCol!);
-      if (cell.isEmpty) {
-        target = cell;
-      }
+    // If Stage 1 is already active, tapping Hint again triggers Stage 2 (Reveal)
+    if (_hintStage == 1 && _activeHint != null) {
+      revealHint();
+      return;
     }
 
-    // Otherwise find the first empty cell
-    if (target == null) {
-      for (int r = 0; r < 9; r++) {
-        for (int c = 0; c < 9; c++) {
-          final cell = _board.cellAt(r, c);
-          if (cell.isEmpty) {
-            target = cell;
-            _selectedRow = r;
-            _selectedCol = c;
-            break;
-          }
+    // Run DeductiveGrader to find the next logical move
+    final hint = DeductiveGrader.findNextHint(
+      _board,
+      preferredRow: _selectedRow,
+      preferredCol: _selectedCol,
+    );
+
+    if (hint == null) return;
+
+    _activeHint = hint;
+    _hintStage = 1;
+    _selectedRow = hint.targetRow;
+    _selectedCol = hint.targetCol;
+    _isNoteMode = false;
+
+    HapticFeedback.lightImpact();
+    notifyListeners();
+  }
+
+  void revealHint() {
+    if (_status != GameStatus.playing || _activeHint == null) return;
+    final hint = _activeHint!;
+
+    if (hint.targetValue != null) {
+      final target = _board.cellAt(hint.targetRow, hint.targetCol);
+      if (target.isEmpty || target.isError) {
+        _hintsUsed++;
+        final prevVal = target.value;
+        final prevNotes = Set<int>.from(target.notes);
+
+        target.value = hint.targetValue!;
+        target.notes.clear();
+        target.hasHint = true;
+        target.isError = false;
+
+        _board.validateDuplicates();
+
+        _undoStack.add(GameAction(
+          row: target.row,
+          col: target.col,
+          previousValue: prevVal,
+          newValue: target.value,
+          previousNotes: prevNotes,
+          newNotes: const {},
+        ));
+        _redoStack.clear();
+
+        _checkCompletions(target.row, target.col);
+
+        if (_board.isComplete) {
+          _handleVictory();
         }
-        if (target != null) break;
+      }
+    } else if (hint.candidateEliminations.isNotEmpty) {
+      _hintsUsed++;
+      for (final entry in hint.candidateEliminations.entries) {
+        final r = entry.key ~/ 9;
+        final c = entry.key % 9;
+        final cell = _board.cellAt(r, c);
+        cell.notes.removeAll(entry.value);
       }
     }
 
-    if (target == null) return; // Board full
-
-    _hintsUsed++;
-    final prevVal = target.value;
-    final prevNotes = Set<int>.from(target.notes);
-
-    target.value = target.solutionValue;
-    target.notes.clear();
-    target.hasHint = true;
-    target.isError = false;
-
-    _board.validateDuplicates();
-
-    _undoStack.add(GameAction(
-      row: target.row,
-      col: target.col,
-      previousValue: prevVal,
-      newValue: target.solutionValue,
-      previousNotes: prevNotes,
-      newNotes: const {},
-    ));
-    _redoStack.clear();
-
-    _checkCompletions(target.row, target.col);
-
-    if (_board.isComplete) {
-      _handleVictory();
-    }
-
+    _hintStage = 2;
     HapticFeedback.mediumImpact();
     _saveState();
     notifyListeners();
+  }
+
+  void dismissHint() {
+    if (_activeHint != null || _hintStage > 0) {
+      _activeHint = null;
+      _hintStage = 0;
+      notifyListeners();
+    }
   }
 
   void _checkCompletions(int r, int c) {
@@ -537,12 +586,15 @@ class SudokuController extends ChangeNotifier {
     if (anyNew) {
       HapticFeedback.heavyImpact();
       // Remove animation highlight after 1.5 seconds
-      Timer(const Duration(milliseconds: 1500), () {
+      late Timer animTimer;
+      animTimer = Timer(const Duration(milliseconds: 1500), () {
+        _animationTimers.remove(animTimer);
         _animatingRows.remove(r);
         _animatingCols.remove(c);
         _animatingBoxes.remove(b);
         notifyListeners();
       });
+      _animationTimers.add(animTimer);
     }
   }
 
@@ -577,6 +629,10 @@ class SudokuController extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
+    for (final t in _animationTimers) {
+      t.cancel();
+    }
+    _animationTimers.clear();
     super.dispose();
   }
 }

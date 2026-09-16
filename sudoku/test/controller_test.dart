@@ -150,7 +150,7 @@ void main() {
       expect(controller.board.cellAt(emptyR, emptyC).value, equals(4));
     });
 
-    test('hint fills selected empty cell with solution value', () {
+    test('two-stage hint provides clue first then reveals answer on second stage', () {
       int emptyR = -1, emptyC = -1;
       for (int r = 0; r < 9; r++) {
         for (int c = 0; c < 9; c++) {
@@ -164,12 +164,31 @@ void main() {
       }
 
       controller.selectCell(emptyR, emptyC);
-      final solution = controller.board.cellAt(emptyR, emptyC).solutionValue;
-
+      // Stage 1: Give Hint provides clue and highlighting, does not spoil value yet
       controller.giveHint();
-      expect(controller.board.cellAt(emptyR, emptyC).value, equals(solution));
-      expect(controller.board.cellAt(emptyR, emptyC).hasHint, isTrue);
+      expect(controller.isHintActive, isTrue);
+      expect(controller.hintStage, equals(1));
+      expect(controller.activeHint, isNotNull);
+      final hint = controller.activeHint!;
+      expect(hint.clueMessage.isNotEmpty, isTrue);
+      // Value not yet placed, hintsUsed not incremented in stage 1
+      expect(controller.board.cellAt(hint.targetRow, hint.targetCol).value, equals(0));
+      expect(controller.hintsUsed, equals(0));
+
+      final targetSol = controller.board.cellAt(hint.targetRow, hint.targetCol).solutionValue;
+
+      // Stage 2: Reveal hint places the value and increments hintsUsed
+      controller.revealHint();
+      expect(controller.hintStage, equals(2));
+      expect(controller.board.cellAt(hint.targetRow, hint.targetCol).value, equals(targetSol));
+      expect(controller.board.cellAt(hint.targetRow, hint.targetCol).hasHint, isTrue);
       expect(controller.hintsUsed, equals(1));
+
+      // Dismiss hint clears the active hint state
+      controller.dismissHint();
+      expect(controller.isHintActive, isFalse);
+      expect(controller.activeHint, isNull);
+      expect(controller.hintStage, equals(0));
     });
 
     test('pause stops the game status and hides board interaction', () {
