@@ -46,6 +46,7 @@ class SudokuController extends ChangeNotifier {
 
   GameStats _stats = GameStats();
   bool _isNewBestTime = false;
+  bool _hasRecordedGameStarted = false;
 
   SudokuController({
     StorageService? storageService,
@@ -78,6 +79,7 @@ class SudokuController extends ChangeNotifier {
   bool get canRedo => _redoStack.isNotEmpty;
   GameStats get stats => _stats;
   bool get isNewBestTime => _isNewBestTime;
+  bool get hasRecordedGameStarted => _hasRecordedGameStarted;
 
   Set<int> get animatingRows => _animatingRows;
   Set<int> get animatingCols => _animatingCols;
@@ -114,6 +116,10 @@ class SudokuController extends ChangeNotifier {
       _hintsUsed = saved.hintsUsed;
       _status = saved.status;
       _board.validateDuplicates();
+      _hasRecordedGameStarted = saved.hasRecordedGameStarted ||
+          _hasAnyCellMarked() ||
+          _mistakes > 0 ||
+          _hintsUsed > 0;
     } else if (initialBoard != null) {
       _startFreshBoardWithBoard(_difficulty, initialBoard);
     } else {
@@ -128,6 +134,26 @@ class SudokuController extends ChangeNotifier {
       }
     }
     _startTimer();
+  }
+
+  bool _hasAnyCellMarked() {
+    for (int r = 0; r < 9; r++) {
+      for (int c = 0; c < 9; c++) {
+        final cell = _board.cellAt(r, c);
+        if (!cell.isGiven && (cell.value > 0 || cell.notes.isNotEmpty)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  void _recordGameStartedIfNeeded() {
+    if (!_hasRecordedGameStarted) {
+      _hasRecordedGameStarted = true;
+      _stats = _stats.recordGameStarted(_difficulty);
+      _storageService?.saveStats(_stats);
+    }
   }
 
   void _startFreshBoardWithBoard(Difficulty difficulty, SudokuBoard board) {
@@ -149,9 +175,8 @@ class SudokuController extends ChangeNotifier {
     _isNewBestTime = false;
     _activeHint = null;
     _hintStage = 0;
+    _hasRecordedGameStarted = false;
 
-    _stats = _stats.recordGameStarted(difficulty);
-    _storageService?.saveStats(_stats);
     _saveState();
   }
 
@@ -189,6 +214,9 @@ class SudokuController extends ChangeNotifier {
     }
     _elapsedSeconds = 0;
     _mistakes = 0;
+    _hintsUsed = 0;
+    _activeHint = null;
+    _hintStage = 0;
     _status = GameStatus.playing;
     _undoStack.clear();
     _redoStack.clear();
@@ -286,6 +314,8 @@ class SudokuController extends ChangeNotifier {
     final cell = _board.cellAt(r, c);
 
     if (cell.isGiven) return;
+
+    _recordGameStartedIfNeeded();
 
     if (_isNoteMode) {
       // Toggle note
@@ -498,6 +528,8 @@ class SudokuController extends ChangeNotifier {
 
     if (hint == null) return;
 
+    _recordGameStartedIfNeeded();
+    _hintsUsed++;
     _activeHint = hint;
     _hintStage = 1;
     _selectedRow = hint.targetRow;
@@ -505,6 +537,7 @@ class SudokuController extends ChangeNotifier {
     _isNoteMode = false;
 
     HapticFeedback.lightImpact();
+    _saveState();
     notifyListeners();
   }
 
@@ -515,7 +548,7 @@ class SudokuController extends ChangeNotifier {
     if (hint.targetValue != null) {
       final target = _board.cellAt(hint.targetRow, hint.targetCol);
       if (target.isEmpty || target.isError) {
-        _hintsUsed++;
+        _recordGameStartedIfNeeded();
         final prevVal = target.value;
         final prevNotes = Set<int>.from(target.notes);
 
@@ -543,7 +576,7 @@ class SudokuController extends ChangeNotifier {
         }
       }
     } else if (hint.candidateEliminations.isNotEmpty) {
-      _hintsUsed++;
+      _recordGameStartedIfNeeded();
       for (final entry in hint.candidateEliminations.entries) {
         final r = entry.key ~/ 9;
         final c = entry.key % 9;
@@ -602,6 +635,8 @@ class SudokuController extends ChangeNotifier {
     _status = GameStatus.completed;
     _timer?.cancel();
 
+    _recordGameStartedIfNeeded();
+
     final prevBest = _stats.forDifficulty(_difficulty).bestTimeSeconds;
     _stats = _stats.recordWin(_difficulty, _elapsedSeconds);
     _isNewBestTime = prevBest == null || _elapsedSeconds < prevBest;
@@ -623,6 +658,7 @@ class SudokuController extends ChangeNotifier {
       mistakes: _mistakes,
       hintsUsed: _hintsUsed,
       status: _status,
+      hasRecordedGameStarted: _hasRecordedGameStarted,
     ));
   }
 

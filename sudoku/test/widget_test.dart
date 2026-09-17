@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sudoku/controllers/sudoku_controller.dart';
 import 'package:sudoku/main.dart';
+import 'package:sudoku/models/game_enums.dart';
 import 'package:sudoku/services/puzzle_database_service.dart';
 import 'package:sudoku/ui/theme/sudoku_theme.dart';
 import 'package:sudoku/ui/widgets/number_pad_widget.dart';
@@ -142,9 +143,10 @@ void main() {
     await tester.tap(find.text('Hint'));
     await tester.pumpAndSettle();
 
-    // Verify Hint Banner appears in Stage 1
+    // Verify Hint Banner appears in Stage 1 and hint counter is updated immediately
     expect(controller.isHintActive, isTrue);
     expect(controller.hintStage, equals(1));
+    expect(controller.hintsUsed, equals(1));
     expect(find.text('Where to Look'), findsOneWidget);
     expect(find.text('Reveal Answer'), findsOneWidget);
     expect(find.text("I'll solve it"), findsOneWidget);
@@ -230,6 +232,103 @@ void main() {
 
     controller.dispose();
   });
+
+  testWidgets('DifficultyDialog displays deductive tiers and allows changing difficulty', (WidgetTester tester) async {
+    final controller = SudokuController();
+
+    await tester.pumpWidget(SudokuApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // Tap difficulty chip in header bar
+    await tester.tap(find.text('EASY'));
+    await tester.pumpAndSettle();
+
+    // Verify dialog header
+    expect(find.text('Select Difficulty'), findsOneWidget);
+    expect(find.text('Graded by deductive solving techniques'), findsOneWidget);
+
+    // Verify all 4 deductive tiers and techniques are displayed
+    expect(find.text('Easy'), findsOneWidget);
+    expect(find.text('Naked & Hidden Singles'), findsOneWidget);
+
+    expect(find.text('Medium'), findsOneWidget);
+    expect(find.text('Pointing Pairs, Box/Line & Pairs'), findsOneWidget);
+
+    expect(find.text('Hard'), findsOneWidget);
+    expect(find.text('X-Wing, Skyscraper & Kite'), findsOneWidget);
+
+    expect(find.text('Expert'), findsOneWidget);
+    expect(find.text('XY-Wing, Unique Rectangles & AIC'), findsOneWidget);
+
+    // Verify ACTIVE badge on Easy
+    expect(find.text('ACTIVE'), findsOneWidget);
+
+    // Verify Restart Current Puzzle is not present in this dialog
+    expect(find.text('Restart Current Puzzle'), findsNothing);
+
+    // Select Medium tier
+    await tester.tap(find.byKey(const ValueKey('difficulty_option_medium')));
+    await tester.pumpAndSettle();
+
+    // Check if dialog closed
+    expect(find.text('Select Difficulty'), findsNothing);
+
+    // Allow background sqflite query to complete
+    await tester.runAsync(() async {
+      await Future.delayed(const Duration(milliseconds: 200));
+    });
+    await tester.pumpAndSettle();
+
+    // Verify difficulty changed to Medium
+    expect(controller.difficulty, equals(Difficulty.medium));
+    expect(find.text('MEDIUM'), findsOneWidget);
+
+    controller.dispose();
+  });
+
+  testWidgets('Stats dialog does not indicate game was played until at least one cell is marked', (WidgetTester tester) async {
+    final controller = SudokuController();
+
+    await tester.pumpWidget(SudokuApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // 1. Open Stats before marking any cell
+    await tester.tap(find.byIcon(Icons.leaderboard_outlined));
+    await tester.pumpAndSettle();
+
+    // In the stats dialog, games played should be 0 for all difficulties
+    expect(find.text('Statistics'), findsOneWidget);
+    expect(controller.stats.forDifficulty(Difficulty.easy).gamesStarted, equals(0));
+
+    // Close stats dialog
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    // 2. Select an empty cell and enter a digit
+    final emptyCellFinder = find.byWidgetPredicate(
+      (widget) => widget is SudokuCellWidget && widget.cell.isEmpty,
+    );
+    expect(emptyCellFinder, findsWidgets);
+
+    await tester.tap(emptyCellFinder.first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('number_btn_1')));
+    await tester.pumpAndSettle();
+
+    // 3. Open Stats again - now games played should be 1 for Easy
+    await tester.tap(find.byIcon(Icons.leaderboard_outlined));
+    await tester.pumpAndSettle();
+
+    expect(controller.stats.forDifficulty(Difficulty.easy).gamesStarted, equals(1));
+    expect(find.text('1'), findsAtLeast(1));
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    controller.dispose();
+  });
 }
+
 
 

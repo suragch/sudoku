@@ -69,9 +69,6 @@ class _SudokuPageState extends State<SudokuPage> {
       onDifficultySelected: (difficulty) {
         widget.controller.startNewGame(difficulty);
       },
-      onRestartCurrent: () {
-        widget.controller.restartCurrentGame();
-      },
     );
   }
 

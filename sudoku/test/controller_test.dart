@@ -171,13 +171,13 @@ void main() {
       expect(controller.activeHint, isNotNull);
       final hint = controller.activeHint!;
       expect(hint.clueMessage.isNotEmpty, isTrue);
-      // Value not yet placed, hintsUsed not incremented in stage 1
+      // Value not yet placed, but hintsUsed is incremented immediately upon requesting hint
       expect(controller.board.cellAt(hint.targetRow, hint.targetCol).value, equals(0));
-      expect(controller.hintsUsed, equals(0));
+      expect(controller.hintsUsed, equals(1));
 
       final targetSol = controller.board.cellAt(hint.targetRow, hint.targetCol).solutionValue;
 
-      // Stage 2: Reveal hint places the value and increments hintsUsed
+      // Stage 2: Reveal hint places the value without double-incrementing hintsUsed
       controller.revealHint();
       expect(controller.hintStage, equals(2));
       expect(controller.board.cellAt(hint.targetRow, hint.targetCol).value, equals(targetSol));
@@ -189,6 +189,25 @@ void main() {
       expect(controller.isHintActive, isFalse);
       expect(controller.activeHint, isNull);
       expect(controller.hintStage, equals(0));
+    });
+
+    test('clicking hint updates hint counter even if answer is not revealed', () {
+      expect(controller.hintsUsed, equals(0));
+
+      // Click Hint (Stage 1 clue)
+      controller.giveHint();
+      expect(controller.hintsUsed, equals(1));
+      expect(controller.hintStage, equals(1));
+
+      // Dismiss without revealing full answer
+      controller.dismissHint();
+      expect(controller.hintsUsed, equals(1));
+      expect(controller.isHintActive, isFalse);
+
+      // Clicking hint again updates counter to 2
+      controller.giveHint();
+      expect(controller.hintsUsed, equals(2));
+      expect(controller.hintStage, equals(1));
     });
 
     test('pause stops the game status and hides board interaction', () {
@@ -260,6 +279,75 @@ void main() {
       expect(controller.board, isNot(same(initialBoard)));
       expect(controller.status, equals(GameStatus.playing));
       expect(controller.elapsedSeconds, equals(0));
+    });
+
+    test('does not record game in stats until at least one cell is marked', () async {
+      // 1. Fresh game starts: no cell marked yet
+      expect(controller.stats.forDifficulty(Difficulty.easy).gamesStarted, equals(0));
+      expect(controller.hasRecordedGameStarted, isFalse);
+
+      // Selecting a cell does not count as playing/marking
+      controller.selectCell(0, 0);
+      expect(controller.stats.forDifficulty(Difficulty.easy).gamesStarted, equals(0));
+      expect(controller.hasRecordedGameStarted, isFalse);
+
+      // Starting another game without marking also does not increment
+      await controller.startNewGame(Difficulty.easy);
+      expect(controller.stats.forDifficulty(Difficulty.easy).gamesStarted, equals(0));
+      expect(controller.hasRecordedGameStarted, isFalse);
+
+      // Find an empty non-given cell
+      int emptyR = -1, emptyC = -1;
+      for (int r = 0; r < 9; r++) {
+        for (int c = 0; c < 9; c++) {
+          if (controller.board.cellAt(r, c).isEmpty) {
+            emptyR = r;
+            emptyC = c;
+            break;
+          }
+        }
+        if (emptyR != -1) break;
+      }
+
+      // 2. Mark a cell by entering a digit
+      controller.selectCell(emptyR, emptyC);
+      controller.enterDigit(1);
+      expect(controller.hasRecordedGameStarted, isTrue);
+      expect(controller.stats.forDifficulty(Difficulty.easy).gamesStarted, equals(1));
+
+      // 3. Subsequent marks in the same game do not increment again
+      controller.erase();
+      controller.enterDigit(2);
+      expect(controller.stats.forDifficulty(Difficulty.easy).gamesStarted, equals(1));
+
+      // 4. Restarting the current game keeps it at 1 game started
+      controller.restartCurrentGame();
+      expect(controller.hasRecordedGameStarted, isTrue);
+      expect(controller.stats.forDifficulty(Difficulty.easy).gamesStarted, equals(1));
+
+      // 5. Starting a new game starts fresh: 0 marked cells until marked
+      await controller.startNewGame(Difficulty.medium);
+      expect(controller.hasRecordedGameStarted, isFalse);
+      expect(controller.stats.forDifficulty(Difficulty.medium).gamesStarted, equals(0));
+
+      // Marking via note mode also records game started
+      int medEmptyR = -1, medEmptyC = -1;
+      for (int r = 0; r < 9; r++) {
+        for (int c = 0; c < 9; c++) {
+          if (controller.board.cellAt(r, c).isEmpty) {
+            medEmptyR = r;
+            medEmptyC = c;
+            break;
+          }
+        }
+        if (medEmptyR != -1) break;
+      }
+
+      controller.toggleNoteMode();
+      controller.selectCell(medEmptyR, medEmptyC);
+      controller.enterDigit(3);
+      expect(controller.hasRecordedGameStarted, isTrue);
+      expect(controller.stats.forDifficulty(Difficulty.medium).gamesStarted, equals(1));
     });
   });
 }

@@ -12,6 +12,7 @@ class SavedGameState {
   final int mistakes;
   final int hintsUsed;
   final GameStatus status;
+  final bool hasRecordedGameStarted;
 
   SavedGameState({
     required this.board,
@@ -20,6 +21,7 @@ class SavedGameState {
     required this.mistakes,
     required this.hintsUsed,
     required this.status,
+    this.hasRecordedGameStarted = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -29,6 +31,7 @@ class SavedGameState {
         'mistakes': mistakes,
         'hintsUsed': hintsUsed,
         'status': status.name,
+        'hasRecordedGameStarted': hasRecordedGameStarted,
       };
 
   factory SavedGameState.fromJson(Map<String, dynamic> json) => SavedGameState(
@@ -38,6 +41,7 @@ class SavedGameState {
         mistakes: json['mistakes'] as int? ?? 0,
         hintsUsed: json['hintsUsed'] as int? ?? 0,
         status: GameStatus.values.byName(json['status'] as String? ?? 'playing'),
+        hasRecordedGameStarted: json['hasRecordedGameStarted'] as bool? ?? false,
       );
 }
 

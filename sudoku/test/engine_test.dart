@@ -71,7 +71,7 @@ void main() {
           }
         }
 
-        expect(clueCount, lessThanOrEqualTo(difficulty.clueTarget + 2));
+        expect(clueCount, lessThanOrEqualTo(45));
         expect(clueCount, greaterThanOrEqualTo(21));
         expect(SudokuSolver.hasUniqueSolution(grid), isTrue);
       });

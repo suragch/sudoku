@@ -1,25 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../controllers/sudoku_controller.dart';
-import '../../models/game_enums.dart';
 
 /// A modern two-stage interactive hint banner that teaches deduction techniques.
 class HintBannerWidget extends StatelessWidget {
   final SudokuController controller;
 
   const HintBannerWidget({super.key, required this.controller});
-
-  Color _getDifficultyColor(Difficulty diff) {
-    switch (diff) {
-      case Difficulty.easy:
-        return const Color(0xFF059669); // Emerald
-      case Difficulty.medium:
-        return const Color(0xFFD97706); // Amber
-      case Difficulty.hard:
-        return const Color(0xFFDC2626); // Red
-      case Difficulty.expert:
-        return const Color(0xFF7C3AED); // Purple
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +16,6 @@ class HintBannerWidget extends StatelessWidget {
 
     final isStage1 = controller.hintStage == 1;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final diffColor = _getDifficultyColor(hint.difficulty);
 
     final cardBg = isDark
         ? (isStage1 ? const Color(0xFF272115) : const Color(0xFF142820))
@@ -74,9 +59,9 @@ class HintBannerWidget extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
                   decoration: BoxDecoration(
-                    color: diffColor.withValues(alpha: 0.15),
+                    color: borderColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6.0),
-                    border: Border.all(color: diffColor.withValues(alpha: 0.4)),
+                    border: Border.all(color: borderColor.withValues(alpha: 0.4)),
                   ),
                   child: Text(
                     hint.techniqueName,
@@ -84,7 +69,7 @@ class HintBannerWidget extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: diffColor,
+                      color: borderColor,
                     ),
                   ),
                 ),
