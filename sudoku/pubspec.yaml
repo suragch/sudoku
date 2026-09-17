@@ -1,7 +1,7 @@
 name: sudoku
 description: "A clean, modern, and ad-free Sudoku game built with Flutter."
 publish_to: 'none'
-version: 1.0.2+3
+version: 1.1.0+4
 
 environment:
   sdk: ^3.13.0
