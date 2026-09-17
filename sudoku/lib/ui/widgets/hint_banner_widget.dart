@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controllers/sudoku_controller.dart';
+import '../../models/deductive_hint.dart';
 
 /// A modern two-stage interactive hint banner that teaches deduction techniques.
 class HintBannerWidget extends StatelessWidget {
@@ -109,7 +110,7 @@ class HintBannerWidget extends StatelessWidget {
 
           // Message Body
           Text(
-            isStage1 ? hint.clueMessage : hint.explanationMessage,
+            isStage1 ? hint.clueMessage : _buildExplanationText(hint),
             style: TextStyle(
               fontSize: 13,
               height: 1.35,
@@ -164,5 +165,16 @@ class HintBannerWidget extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _buildExplanationText(DeductiveHint hint) {
+    if (hint.targetValue != null) {
+      return hint.explanationMessage;
+    }
+    final cellVal = controller.board.cellAt(hint.targetRow, hint.targetCol).value;
+    if (cellVal != 0) {
+      return '${hint.explanationMessage}\n(Row ${hint.targetRow + 1}, Column ${hint.targetCol + 1} revealed as $cellVal)';
+    }
+    return hint.explanationMessage;
   }
 }

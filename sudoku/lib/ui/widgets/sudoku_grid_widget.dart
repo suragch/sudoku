@@ -109,28 +109,10 @@ class SudokuGridWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4.0),
                 ),
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.pause_circle_filled_rounded,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Game Paused',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: controller.togglePause,
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Resume'),
-                      ),
-                    ],
+                  child: FilledButton.icon(
+                    onPressed: controller.togglePause,
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('Resume'),
                   ),
                 ),
               ),

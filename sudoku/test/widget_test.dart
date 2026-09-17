@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sudoku/controllers/sudoku_controller.dart';
 import 'package:sudoku/main.dart';
+import 'package:sudoku/models/deductive_hint.dart';
 import 'package:sudoku/models/game_enums.dart';
 import 'package:sudoku/services/puzzle_database_service.dart';
 import 'package:sudoku/ui/theme/sudoku_theme.dart';
@@ -172,6 +173,65 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('Pointing Pair / elimination hint reveals answer on the board when Reveal Answer is clicked', (WidgetTester tester) async {
+    final controller = SudokuController();
+
+    // Find an empty cell to target
+    int targetR = -1, targetC = -1;
+    for (int r = 0; r < 9; r++) {
+      for (int c = 0; c < 9; c++) {
+        if (controller.board.cellAt(r, c).isEmpty) {
+          targetR = r;
+          targetC = c;
+          break;
+        }
+      }
+      if (targetR != -1) break;
+    }
+
+    final targetCell = controller.board.cellAt(targetR, targetC);
+    final expectedVal = targetCell.solutionValue;
+
+    // Simulate Pointing Pair hint (targetValue is null)
+    final pointingPairHint = DeductiveHint(
+      techniqueId: 'pointing_pair',
+      techniqueName: 'Pointing Pair / Triple',
+      difficulty: Difficulty.medium,
+      targetRow: targetR,
+      targetCol: targetC,
+      targetValue: null,
+      candidateEliminations: {},
+      causeCellIndices: {},
+      clueMessage: 'Look at Box 2: candidate 9 is confined to Row 1.',
+      explanationMessage: 'Because candidate 9 is confined to Row 1, it eliminates candidate 9 from other cells.',
+    );
+
+    controller.setActiveHintForTesting(pointingPairHint, stage: 1);
+
+    await tester.pumpWidget(SudokuApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // Verify Pointing Pair chip and clue are shown
+    expect(find.text('Pointing Pair / Triple'), findsOneWidget);
+    expect(find.text('Where to Look'), findsOneWidget);
+    expect(find.text('Reveal Answer'), findsOneWidget);
+    expect(targetCell.value, equals(0));
+
+    // Tap Reveal Answer
+    await tester.tap(find.text('Reveal Answer'));
+    await tester.pumpAndSettle();
+
+    // Verify cell answer is revealed on the board!
+    expect(targetCell.value, equals(expectedVal));
+    expect(targetCell.hasHint, isTrue);
+
+    // Verify Stage 2 explanation includes the revealed cell answer
+    expect(find.text('Explanation'), findsOneWidget);
+    expect(find.textContaining('revealed as $expectedVal'), findsOneWidget);
+
+    controller.dispose();
+  });
+
   testWidgets('Grid numbers shrink proportionally when the grid shrinks in size', (WidgetTester tester) async {
     final controller = SudokuController();
 
@@ -245,25 +305,16 @@ void main() {
 
     // Verify dialog header
     expect(find.text('Select Difficulty'), findsOneWidget);
-    expect(find.text('Graded by deductive solving techniques'), findsOneWidget);
 
-    // Verify all 4 deductive tiers and techniques are displayed
+    // Verify all 4 difficulty levels are displayed without explanations
     expect(find.text('Easy'), findsOneWidget);
-    expect(find.text('Naked & Hidden Singles'), findsOneWidget);
-
     expect(find.text('Medium'), findsOneWidget);
-    expect(find.text('Pointing Pairs, Box/Line & Pairs'), findsOneWidget);
-
     expect(find.text('Hard'), findsOneWidget);
-    expect(find.text('X-Wing, Skyscraper & Kite'), findsOneWidget);
-
     expect(find.text('Expert'), findsOneWidget);
-    expect(find.text('XY-Wing, Unique Rectangles & AIC'), findsOneWidget);
 
-    // Verify ACTIVE badge on Easy
-    expect(find.text('ACTIVE'), findsOneWidget);
-
-    // Verify Restart Current Puzzle is not present in this dialog
+    // Verify explanations/subtitles are not present
+    expect(find.text('Graded by deductive solving techniques'), findsNothing);
+    expect(find.text('Naked & Hidden Singles'), findsNothing);
     expect(find.text('Restart Current Puzzle'), findsNothing);
 
     // Select Medium tier
@@ -325,6 +376,68 @@ void main() {
 
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
+
+    controller.dispose();
+  });
+
+  testWidgets('Paused overlay displays only Resume button without non-tappable pause button', (WidgetTester tester) async {
+    final controller = SudokuController();
+
+    await tester.pumpWidget(SudokuApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // Pause the game via the timer pause icon
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.pumpAndSettle();
+
+    expect(controller.status, equals(GameStatus.paused));
+
+    // Verify non-tappable big pause icon is removed
+    expect(find.byIcon(Icons.pause_circle_filled_rounded), findsNothing);
+
+    // Verify Resume button is displayed on the paused overlay
+    final resumeBtn = find.widgetWithText(FilledButton, 'Resume');
+    expect(resumeBtn, findsOneWidget);
+
+    // Tap Resume button to unpause
+    await tester.tap(resumeBtn);
+    await tester.pumpAndSettle();
+
+    expect(controller.status, equals(GameStatus.playing));
+    expect(resumeBtn, findsNothing);
+
+    controller.dispose();
+  });
+
+  testWidgets('If hint is showing when pause button is pressed, hint text is dismissed', (WidgetTester tester) async {
+    final controller = SudokuController();
+
+    await tester.pumpWidget(SudokuApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // Trigger hint
+    await tester.tap(find.text('Hint'));
+    await tester.pumpAndSettle();
+
+    expect(controller.isHintActive, isTrue);
+    expect(find.text('Where to Look'), findsOneWidget);
+
+    // Tap pause button in header bar
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.pumpAndSettle();
+
+    expect(controller.status, equals(GameStatus.paused));
+    expect(controller.isHintActive, isFalse);
+    expect(find.text('Where to Look'), findsNothing);
+
+    // Tap Resume button to unpause
+    await tester.tap(find.widgetWithText(FilledButton, 'Resume'));
+    await tester.pumpAndSettle();
+
+    expect(controller.status, equals(GameStatus.playing));
+    // Hint remains dismissed after unpausing
+    expect(controller.isHintActive, isFalse);
+    expect(find.text('Where to Look'), findsNothing);
 
     controller.dispose();
   });

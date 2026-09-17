@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sudoku/controllers/sudoku_controller.dart';
+import 'package:sudoku/models/deductive_hint.dart';
 import 'package:sudoku/models/game_enums.dart';
 import 'package:sudoku/services/puzzle_database_service.dart';
 
@@ -210,6 +211,70 @@ void main() {
       expect(controller.hintStage, equals(1));
     });
 
+    test('revealing pointing pair / elimination hint reveals the cell answer and eliminates notes', () {
+      // Find an empty cell to be the target
+      int emptyR = -1, emptyC = -1;
+      for (int r = 0; r < 9; r++) {
+        for (int c = 0; c < 9; c++) {
+          if (controller.board.cellAt(r, c).isEmpty) {
+            emptyR = r;
+            emptyC = c;
+            break;
+          }
+        }
+        if (emptyR != -1) break;
+      }
+
+      final targetCell = controller.board.cellAt(emptyR, emptyC);
+      final expectedSolution = targetCell.solutionValue;
+
+      // Also set up another empty cell with notes that should be eliminated
+      int otherR = (emptyR + 1) % 9;
+      int otherC = emptyC;
+      final otherCell = controller.board.cellAt(otherR, otherC);
+      final candidateToEliminate = (expectedSolution == 9) ? 8 : 9;
+      final candidateToKeep = [1, 2, 3, 4, 5, 6, 7].firstWhere((d) => d != expectedSolution);
+      otherCell.notes.addAll([candidateToEliminate, candidateToKeep]);
+
+      // Pointing pair hint has targetValue == null, but specifies targetRow/Col and candidateEliminations
+      final pointingPairHint = DeductiveHint(
+        techniqueId: 'pointing_pair',
+        techniqueName: 'Pointing Pair / Triple',
+        difficulty: Difficulty.medium,
+        targetRow: emptyR,
+        targetCol: emptyC,
+        targetValue: null,
+        candidateEliminations: {
+          otherR * 9 + otherC: {candidateToEliminate},
+        },
+        causeCellIndices: {emptyR * 9 + ((emptyC + 1) % 9)},
+        unitType: 'box',
+        unitIndex: targetCell.boxIndex,
+        clueMessage: 'Look at Box ${targetCell.boxIndex + 1}: candidate $candidateToEliminate is confined to Row ${emptyR + 1}.',
+        explanationMessage: 'Candidate $candidateToEliminate is eliminated.',
+      );
+
+      controller.setActiveHintForTesting(pointingPairHint, stage: 1);
+      expect(controller.isHintActive, isTrue);
+      expect(targetCell.value, equals(0));
+
+      // User taps Reveal Answer
+      controller.revealHint();
+
+      expect(controller.hintStage, equals(2));
+      // Cell answer must be revealed on the board
+      expect(targetCell.value, equals(expectedSolution));
+      expect(targetCell.hasHint, isTrue);
+      // Candidate elimination should have eliminated candidateToEliminate from otherCell
+      expect(otherCell.notes.contains(candidateToEliminate), isFalse);
+      expect(otherCell.notes.contains(candidateToKeep), isTrue);
+
+      // Undo should revert cell value and candidate notes
+      controller.undo();
+      expect(targetCell.value, equals(0));
+      expect(otherCell.notes.contains(candidateToEliminate), isTrue);
+    });
+
     test('pause stops the game status and hides board interaction', () {
       expect(controller.status, equals(GameStatus.playing));
       controller.togglePause();
@@ -221,6 +286,24 @@ void main() {
 
       controller.togglePause();
       expect(controller.status, equals(GameStatus.playing));
+    });
+
+    test('pausing while a hint is showing dismisses the hint', () {
+      controller.giveHint();
+      expect(controller.isHintActive, isTrue);
+      expect(controller.activeHint, isNotNull);
+
+      // Pause the game
+      controller.togglePause();
+      expect(controller.status, equals(GameStatus.paused));
+      expect(controller.isHintActive, isFalse);
+      expect(controller.activeHint, isNull);
+      expect(controller.hintStage, equals(0));
+
+      // Resume the game
+      controller.togglePause();
+      expect(controller.status, equals(GameStatus.playing));
+      expect(controller.isHintActive, isFalse);
     });
 
     test('entering a mistake marks cell as isError and increments mistakes count', () {

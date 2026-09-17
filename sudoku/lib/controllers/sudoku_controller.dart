@@ -245,6 +245,8 @@ class SudokuController extends ChangeNotifier {
     if (_status == GameStatus.completed) return;
     if (_status == GameStatus.playing) {
       _status = GameStatus.paused;
+      _activeHint = null;
+      _hintStage = 0;
     } else {
       _status = GameStatus.playing;
     }
@@ -545,43 +547,149 @@ class SudokuController extends ChangeNotifier {
     if (_status != GameStatus.playing || _activeHint == null) return;
     final hint = _activeHint!;
 
-    if (hint.targetValue != null) {
-      final target = _board.cellAt(hint.targetRow, hint.targetCol);
-      if (target.isEmpty || target.isError) {
-        _recordGameStartedIfNeeded();
-        final prevVal = target.value;
-        final prevNotes = Set<int>.from(target.notes);
+    final target = _board.cellAt(hint.targetRow, hint.targetCol);
+    if (!target.isGiven && (target.isEmpty || target.value != target.solutionValue)) {
+      _recordGameStartedIfNeeded();
+      final prevVal = target.value;
+      final prevNotes = Set<int>.from(target.notes);
+      final valueToReveal = hint.targetValue ?? target.solutionValue;
 
-        target.value = hint.targetValue!;
-        target.notes.clear();
-        target.hasHint = true;
-        target.isError = false;
+      target.value = valueToReveal;
+      target.notes.clear();
+      target.hasHint = true;
+      target.isError = false;
 
-        _board.validateDuplicates();
+      final secondaryNotes = <CellNoteChange>[];
+      final r = target.row;
+      final c = target.col;
+      final b = target.boxIndex;
 
-        _undoStack.add(GameAction(
-          row: target.row,
-          col: target.col,
-          previousValue: prevVal,
-          newValue: target.value,
-          previousNotes: prevNotes,
-          newNotes: const {},
-        ));
-        _redoStack.clear();
-
-        _checkCompletions(target.row, target.col);
-
-        if (_board.isComplete) {
-          _handleVictory();
+      // Auto-erase matching notes in row, column, and box
+      for (int i = 0; i < 9; i++) {
+        if (i != c && _board.cellAt(r, i).notes.contains(valueToReveal)) {
+          final peer = _board.cellAt(r, i);
+          final old = Set<int>.from(peer.notes);
+          peer.notes.remove(valueToReveal);
+          secondaryNotes.add(CellNoteChange(
+            row: r,
+            col: i,
+            previousNotes: old,
+            newNotes: Set<int>.from(peer.notes),
+          ));
         }
+      }
+      for (int i = 0; i < 9; i++) {
+        if (i != r && _board.cellAt(i, c).notes.contains(valueToReveal)) {
+          final peer = _board.cellAt(i, c);
+          final old = Set<int>.from(peer.notes);
+          peer.notes.remove(valueToReveal);
+          secondaryNotes.add(CellNoteChange(
+            row: i,
+            col: c,
+            previousNotes: old,
+            newNotes: Set<int>.from(peer.notes),
+          ));
+        }
+      }
+      for (final peer in _board.getBox(b)) {
+        if ((peer.row != r || peer.col != c) && peer.notes.contains(valueToReveal)) {
+          final existing = secondaryNotes.indexWhere(
+            (ch) => ch.row == peer.row && ch.col == peer.col,
+          );
+          if (existing == -1) {
+            final old = Set<int>.from(peer.notes);
+            peer.notes.remove(valueToReveal);
+            secondaryNotes.add(CellNoteChange(
+              row: peer.row,
+              col: peer.col,
+              previousNotes: old,
+              newNotes: Set<int>.from(peer.notes),
+            ));
+          }
+        }
+      }
+
+      // Also apply candidate eliminations from hint if any
+      for (final entry in hint.candidateEliminations.entries) {
+        final elimR = entry.key ~/ 9;
+        final elimC = entry.key % 9;
+        if (elimR == r && elimC == c) continue;
+        final cell = _board.cellAt(elimR, elimC);
+        final toRemove = entry.value.where((d) => cell.notes.contains(d)).toSet();
+        if (toRemove.isNotEmpty) {
+          final existingIndex = secondaryNotes.indexWhere(
+            (ch) => ch.row == elimR && ch.col == elimC,
+          );
+          if (existingIndex != -1) {
+            final existingChange = secondaryNotes[existingIndex];
+            cell.notes.removeAll(toRemove);
+            secondaryNotes[existingIndex] = CellNoteChange(
+              row: elimR,
+              col: elimC,
+              previousNotes: existingChange.previousNotes,
+              newNotes: Set<int>.from(cell.notes),
+            );
+          } else {
+            final old = Set<int>.from(cell.notes);
+            cell.notes.removeAll(toRemove);
+            secondaryNotes.add(CellNoteChange(
+              row: elimR,
+              col: elimC,
+              previousNotes: old,
+              newNotes: Set<int>.from(cell.notes),
+            ));
+          }
+        }
+      }
+
+      _board.validateDuplicates();
+
+      _undoStack.add(GameAction(
+        row: target.row,
+        col: target.col,
+        previousValue: prevVal,
+        newValue: target.value,
+        previousNotes: prevNotes,
+        newNotes: const {},
+        secondaryNoteChanges: secondaryNotes,
+      ));
+      _redoStack.clear();
+
+      _checkCompletions(target.row, target.col);
+
+      if (_board.isComplete) {
+        _handleVictory();
       }
     } else if (hint.candidateEliminations.isNotEmpty) {
       _recordGameStartedIfNeeded();
+      final secondaryNotes = <CellNoteChange>[];
       for (final entry in hint.candidateEliminations.entries) {
         final r = entry.key ~/ 9;
         final c = entry.key % 9;
         final cell = _board.cellAt(r, c);
-        cell.notes.removeAll(entry.value);
+        final toRemove = entry.value.where((d) => cell.notes.contains(d)).toSet();
+        if (toRemove.isNotEmpty) {
+          final old = Set<int>.from(cell.notes);
+          cell.notes.removeAll(toRemove);
+          secondaryNotes.add(CellNoteChange(
+            row: r,
+            col: c,
+            previousNotes: old,
+            newNotes: Set<int>.from(cell.notes),
+          ));
+        }
+      }
+      if (secondaryNotes.isNotEmpty) {
+        _undoStack.add(GameAction(
+          row: hint.targetRow,
+          col: hint.targetCol,
+          previousValue: target.value,
+          newValue: target.value,
+          previousNotes: Set<int>.from(target.notes),
+          newNotes: Set<int>.from(target.notes),
+          secondaryNoteChanges: secondaryNotes,
+        ));
+        _redoStack.clear();
       }
     }
 
@@ -597,6 +705,15 @@ class SudokuController extends ChangeNotifier {
       _hintStage = 0;
       notifyListeners();
     }
+  }
+
+  @visibleForTesting
+  void setActiveHintForTesting(DeductiveHint hint, {int stage = 1}) {
+    _activeHint = hint;
+    _hintStage = stage;
+    _selectedRow = hint.targetRow;
+    _selectedCol = hint.targetCol;
+    notifyListeners();
   }
 
   void _checkCompletions(int r, int c) {
